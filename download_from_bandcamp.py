@@ -66,6 +66,7 @@ def get_info(url):
 	}
 
 def download(url, filename):
+	filename.replace("/", "\\")
 	f = open(filename, 'wb')
 	f.write(requests_retry_session().get(url).content)
 	f.flush()
