@@ -66,7 +66,6 @@ def get_info(url):
 	}
 
 def download(url, filename):
-	filename.replace("/", "\\")
 	f = open(filename, 'wb')
 	f.write(requests_retry_session().get(url).content)
 	f.flush()
@@ -93,6 +92,7 @@ def main(args):
 		), end='', flush=True)
 		track_filename = t[0].lower().replace(' ', '_')
 		track_filename = '{} - {}.mp3'.format(num, track_filename)
+		track_filename = track_filename.replace("/", "\\")
 		download(t[1], track_filename)
 		filenames.append(track_filename)
 		i += 1
