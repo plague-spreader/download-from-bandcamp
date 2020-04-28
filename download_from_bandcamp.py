@@ -66,10 +66,10 @@ def get_info(url):
 	}
 
 def download(url, filename):
-	f = open(filename, 'wb')
-	f.write(requests_retry_session().get(url).content)
-	f.flush()
-	f.close()
+	with open(filename, 'wb') as f:
+		ret = requests_retry_session().get(url).content
+		f.write(ret)
+	return ret
 
 def main(args):
 	if len(args) <= 1:
@@ -80,7 +80,7 @@ def main(args):
 	info = get_info(url)
 	print("Done.")
 	print("Downloading album art... ", end='', flush=True)
-	download(info['album_art'], 'Cover.jpg')
+	image_data = download(info['album_art'], 'Cover.jpg')
 	print("Done.")
 	lt = len(str(len(info['tracks']))) # number of digits of len(info['tracks'])
 	i = 1
@@ -94,6 +94,16 @@ def main(args):
 		track_filename = '{} - {}.mp3'.format(num, track_filename)
 		track_filename = track_filename.replace("/", "\\")
 		download(t[1], track_filename)
+		id3 = eyed3.load(track_filename)
+		if not id3.tag:
+			id3.initTag()
+			id3.tag.artist = info["artist"]
+			id3.tag.album = info["album"]
+			id3.tag.album_artist = info["artist"]
+			id3.tag.title = t[0]
+			id3.tag.track_num = i
+			id3.tag.images.set(3, image_data, "image/jpeg")
+			id3.tag.save()
 		filenames.append(track_filename)
 		i += 1
 	print('\r', end='', flush=True)
