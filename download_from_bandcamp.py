@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 #######################
 
+import os
+import argparse
 import sys
 import json
 import re
@@ -71,14 +73,16 @@ def download(url, filename):
 		f.write(ret)
 	return ret
 
-def main(args):
-	if len(args) <= 1:
-		print("Usage: {} <URL bandcamp>".format(sys.argv[0]), file=sys.stderr)
-		sys.exit(1)
-	url = args[1]
+def download_single_album(url):
+	print('Downloading album from URL "{}"'.format(url))
 	print("Retrieving info from bandcamp... ", end='', flush=True)
 	info = get_info(url)
 	print("Done.")
+	if not info["tracks"]:
+		print('The bandcamp URL "{}" does not contain any MP3s'.format(url))
+		return
+	os.mkdir(info["album"])
+	os.chdir(info["album"])
 	print("Downloading album art... ", end='', flush=True)
 	image_data = download(info['album_art'], 'Cover.jpg')
 	print("Done.")
@@ -110,6 +114,33 @@ def main(args):
 	print(' '*(21+2*lt), end='', flush=True)
 	print("\rTracks downloaded.", flush=True)
 	print("Enjoy your album.", flush=True)
+	os.chdir("..")
+
+def download_from_container(url):
+	print('Downloading albums from container URL "{}"'.format(url))
+	directory = url[url.index("://")+3:]
+	directory = directory[:directory.rindex(".bandcamp.com")]
+	os.mkdir(directory)
+	os.chdir(directory)
+	html_content = html.fromstring(get_html(url))
+	hrefs = \
+html_content.xpath("//li[contains(@class, 'music-grid-item')]/a/@href")
+	base_url = url[:url.rindex("/")]
+	for href in hrefs:
+		download_single_album(base_url + href)
+	os.chdir("..")
+
+def main(args):
+	for url in args.urls:
+		if ".bandcamp.com" not in url:
+			print('URL "{}" is not a valid bandcamp URL'.format(url))
+		else:
+			if url.endswith("/music"):
+				download_from_container(url)
+			else:
+				download_single_album(url)
 
 if __name__ == '__main__':
-	main(sys.argv)
+	ap = argparse.ArgumentParser()
+	ap.add_argument("urls", nargs="+")
+	main(ap.parse_args())
