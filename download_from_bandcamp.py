@@ -119,7 +119,10 @@ def download_single_album(url):
 def download_from_container(url):
 	print('Downloading albums from container URL "{}"'.format(url))
 	directory = url[url.index("://")+3:]
-	directory = directory[:directory.rindex(".bandcamp.com")]
+	try:
+		directory = directory[:directory.rindex(".bandcamp.com")]
+	except ValueError:
+		pass # apparently not all bandcamp links has .bandcamp.com
 	os.mkdir(directory)
 	os.chdir(directory)
 	html_content = html.fromstring(get_html(url))
@@ -132,7 +135,9 @@ html_content.xpath("//li[contains(@class, 'music-grid-item')]/a/@href")
 
 def main(args):
 	for url in args.urls:
-		if ".bandcamp.com" not in url:
+		if False: #".bandcamp.com" not in url:
+			# TODO is it possibile to find a condition to know whether the
+			# current link is a valid bandcamp URL?
 			print('URL "{}" is not a valid bandcamp URL'.format(url))
 		else:
 			if url.endswith("/music"):
