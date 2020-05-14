@@ -32,8 +32,17 @@ def requests_retry_session(
 	session.mount('https://', adapter)
 	return session
 
+class NotBandcampUrl(Exception):
+	def __init__(self, url):
+		self.url = url
+
 def get_html(url):
-	return requests_retry_session().get(url).text
+	ret = requests_retry_session().get(url).text
+	if 'var siteroot = "http://bandcamp.com";' not in ret:
+		# hopefully this is a sound method for checking if <url> is a valid
+		# bandcamp url ...
+		raise NotBandcampUrl(url)
+	return ret
 
 def get_info(url):
 	html_content = get_html(url)
@@ -49,7 +58,8 @@ def get_info(url):
 	data[0] = '{'
 	i = 1
 	while i < len(data):
-		if data[i][4:6] == '//' or data[i][4:13] == 'item_type' or data[i][4:7] == 'url':
+		if data[i][4:6] == '//' or data[i][4:13] == 'item_type' \
+or data[i][4:7] == 'url':
 			del data[i]
 			continue
 		ci = data[i].find(':')
@@ -86,7 +96,8 @@ def download_single_album(url):
 	print("Downloading album art... ", end='', flush=True)
 	image_data = download(info['album_art'], 'Cover.jpg')
 	print("Done.")
-	lt = len(str(len(info['tracks']))) # number of digits of len(info['tracks'])
+	lt = len(str(len(info['tracks'])))
+	# ^ number of digits of len(info['tracks'])
 	i = 1
 	filenames = []
 	for t in info['tracks']:
@@ -135,15 +146,13 @@ html_content.xpath("//li[contains(@class, 'music-grid-item')]/a/@href")
 
 def main(args):
 	for url in args.urls:
-		if False: #".bandcamp.com" not in url:
-			# TODO is it possibile to find a condition to know whether the
-			# current link is a valid bandcamp URL?
-			print('URL "{}" is not a valid bandcamp URL'.format(url))
-		else:
+		try:
 			if url.endswith("/music"):
 				download_from_container(url)
 			else:
 				download_single_album(url)
+		except NotBandcampUrl as e:
+			print('"{}" is not a valid Bandcamp URL.'.format(e.url))
 
 if __name__ == '__main__':
 	ap = argparse.ArgumentParser()
