@@ -36,6 +36,10 @@ class NotBandcampUrl(Exception):
 	def __init__(self, url):
 		self.url = url
 
+class DontWantToDownload(Exception):
+	# actually not an exception
+	pass
+
 def get_html(url):
 	ret = requests_retry_session().get(url).text
 	if 'var siteroot = "http://bandcamp.com";' not in ret:
@@ -68,8 +72,25 @@ or data[i][4:7] == 'url':
 	data[-1] = '}'
 	data = "".join(data)
 	data = json.loads(data)
-	tracks = data['trackinfo']
-	tracks = list(map(lambda x: (x['title'], x['file']['mp3-128']), tracks))
+	trackinfo = data['trackinfo']
+	tracks = []
+	download_even_if_missing = False
+	for the_track in trackinfo:
+		if not the_track["file"]:
+			if not download_even_if_missing:
+				choice_made = False
+				while not choice_made:
+					s_choice = input("\nNot all tracks are available for \
+download. Do you still want to download what's there (y or n)? ")
+					choice_made = s_choice in "yn"
+					if not choice_made:
+						print("Just enter a lowercase y or n")
+				download_even_if_missing = s_choice == "y"
+				if not download_even_if_missing:
+					raise DontWantToDownload()
+			tracks.append((the_track["title"], None))
+		else:
+			tracks.append((the_track["title"], the_track["file"]["mp3-128"]))
 	return {
 	'album': data['current']['title'],
 	'album_art': album_art,
@@ -91,8 +112,9 @@ def download_single_album(url):
 	if not info["tracks"]:
 		print('The bandcamp URL "{}" does not contain any MP3s'.format(url))
 		return
-	os.mkdir(info["album"])
-	os.chdir(info["album"])
+	album_dir = info["album"].replace("/", "-")
+	os.mkdir(album_dir)
+	os.chdir(album_dir)
 	print("Downloading album art... ", end='', flush=True)
 	image_data = download(info['album_art'], 'Cover.jpg')
 	print("Done.")
@@ -105,21 +127,22 @@ def download_single_album(url):
 		print("\rDownloading track [{}/{}]".format(
 		num, len(info['tracks'])
 		), end='', flush=True)
-		track_filename = t[0].lower().replace(' ', '_')
-		track_filename = '{} - {}.mp3'.format(num, track_filename)
-		track_filename = track_filename.replace("/", "\\")
-		download(t[1], track_filename)
-		id3 = eyed3.load(track_filename)
-		if not id3.tag:
-			id3.initTag()
-			id3.tag.artist = info["artist"]
-			id3.tag.album = info["album"]
-			id3.tag.album_artist = info["artist"]
-			id3.tag.title = t[0]
-			id3.tag.track_num = i
-			id3.tag.images.set(3, image_data, "image/jpeg")
-			id3.tag.save()
-		filenames.append(track_filename)
+		if t[1]:
+			track_filename = t[0].lower().replace(' ', '_')
+			track_filename = '{} - {}.mp3'.format(num, track_filename)
+			track_filename = track_filename.replace("/", "\\")
+			download(t[1], track_filename)
+			id3 = eyed3.load(track_filename)
+			if not id3.tag:
+				id3.initTag()
+				id3.tag.artist = info["artist"]
+				id3.tag.album = info["album"]
+				id3.tag.album_artist = info["artist"]
+				id3.tag.title = t[0]
+				id3.tag.track_num = i
+				id3.tag.images.set(3, image_data, "image/jpeg")
+				id3.tag.save()
+			filenames.append(track_filename)
 		i += 1
 	print('\r', end='', flush=True)
 	print(' '*(21+2*lt), end='', flush=True)
@@ -133,7 +156,8 @@ def download_from_container(url):
 	try:
 		directory = directory[:directory.rindex(".bandcamp.com")]
 	except ValueError:
-		pass # apparently not all bandcamp links has .bandcamp.com
+		# apparently not all bandcamp links has .bandcamp.com
+		directory = directory[:directory.index("/music")]
 	os.mkdir(directory)
 	os.chdir(directory)
 	html_content = html.fromstring(get_html(url))
@@ -153,6 +177,8 @@ def main(args):
 				download_single_album(url)
 		except NotBandcampUrl as e:
 			print('"{}" is not a valid Bandcamp URL.'.format(e.url))
+		except DontWantToDownload:
+			print("Download aborted as requested.")
 
 if __name__ == '__main__':
 	ap = argparse.ArgumentParser()
