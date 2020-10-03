@@ -42,7 +42,8 @@ class DontWantToDownload(Exception):
 
 def get_html(url):
 	ret = requests_retry_session().get(url).text
-	if 'var siteroot = "http://bandcamp.com";' not in ret:
+	# if 'var siteroot = "http://bandcamp.com";' not in ret:
+	if False:
 		# hopefully this is a sound method for checking if <url> is a valid
 		# bandcamp url ...
 		raise NotBandcampUrl(url)
@@ -50,28 +51,10 @@ def get_html(url):
 
 def get_info(url):
 	html_content = get_html(url)
-	album_art = html.fromstring(html_content)
-	album_art = album_art.xpath('//div[@id="tralbumArt"]/a/@href')[0]
-	html_lines = html_content.split('\n')
-	del html_content
-	ind_start = html_lines.index('var TralbumData = {')
-	ind_end = html_lines[ind_start:]
-	ind_end = ind_start + ind_end.index('};')
-	data = html_lines[ind_start:ind_end+1]
-	del html_lines
-	data[0] = '{'
-	i = 1
-	while i < len(data):
-		if data[i][4:6] == '//' or data[i][4:13] == 'item_type' \
-or data[i][4:7] == 'url':
-			del data[i]
-			continue
-		ci = data[i].find(':')
-		data[i] = '    "{}": {}'.format(data[i][4:ci], data[i][ci+1:])
-		i += 1
-	data[-1] = '}'
-	data = "".join(data)
-	data = json.loads(data)
+	parsed_html = html.fromstring(html_content)
+	del html_content # free up some memory
+	album_art = parsed_html.xpath('//div[@id="tralbumArt"]/a/@href')[0]
+	data = json.loads(parsed_html.xpath("//script/@data-tralbum")[0])
 	trackinfo = data['trackinfo']
 	tracks = []
 	download_even_if_missing = False
