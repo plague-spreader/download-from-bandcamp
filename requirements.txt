@@ -1,0 +1,4 @@
+eyed3
+requests
+lxml
+urllib3==1.26.19
